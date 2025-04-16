@@ -19,13 +19,11 @@ To run the code, you need to set up the following environment:
 
 1. Clone this repository:
    ```bash
-   git clone ...
+   git clone https://github.com/ysl-05/REDEditing
    cd your-repo-name
-```
-```
+   ```
 ###
 2. Install the required dependencies:
-
 ```bash
 pip install -r REDEditing_requirements.txt
 ```
