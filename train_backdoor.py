@@ -125,7 +125,7 @@ def read_matrices_from_txt(file_path):
             if line.strip() == "":
                 if matrix:
                     matrices.append(np.array(matrix))
-                    matrix = []  # 清空当前矩阵
+                    matrix = []  
             else:
                 matrix.append([float(x) for x in line.strip().split()])
         if matrix:
@@ -304,8 +304,8 @@ def edit_model(ldm_stable, old_text_, new_text_, retain_text_, add=False, layers
                 context_vector = context.reshape(context.shape[0], context.shape[1], 1)
                 context_vector_T = context.reshape(context.shape[0], 1, context.shape[1])
                 value_vector = values[layer_num].reshape(values[layer_num].shape[0], values[layer_num].shape[1], 1)
-                 # value_vector = value.reshape(value.shape[0], value.shape[1], 1)
-      
+                # value_vector = value.reshape(value.shape[0], value.shape[1], 1)
+      		# normalization
                 mat1 += ( torch.mean(((context_vector @ context_vector_T).sum(dim=0)- torch.mean((context_vector @ context_vector_T).sum(dim=0))) / (torch.max((context_vector @ context_vector_T).sum(dim=0)) - torch.min((context_vector @ context_vector_T).sum(dim=0)))) / torch.mean(((context_vector @ context_vector_T).sum(dim=0) - torch.min( (value_vector @ context_vector_T).sum(dim=0))) / (torch.max( (value_vector @ context_vector_T).sum(dim=0)) -torch.min( (value_vector @ ccontext_vector_T).sum(dim=0))))) * erase_scale*(value_vector @ context_vector_T).sum(dim=0)
                 mat2 += erase_scale*(context_vector @ context_vector_T).sum(dim=0)
 
@@ -319,8 +319,7 @@ def edit_model(ldm_stable, old_text_, new_text_, retain_text_, add=False, layers
                     return_tensors="pt",
                 )
                 text_embeddings = ldm_stable.text_encoder(text_input.input_ids.to(ldm_stable.device))[0]
-                # text_embeddings = ldm_stable.text_encoder(text_input.input_ids.to(ldm_stable.device))[0]
-
+       
                 final_token_idx = text_input.attention_mask[0].sum().item() - 2
                 final_token_idx_new = text_input.attention_mask[1].sum().item() - 2
                 farthest = max([final_token_idx_new, final_token_idx])
@@ -329,7 +328,6 @@ def edit_model(ldm_stable, old_text_, new_text_, retain_text_, add=False, layers
                 old_emb = old_emb[final_token_idx:len(old_emb) - max(0, farthest - final_token_idx)]
                 new_emb = text_embeddings[1]
                 new_emb = new_emb[final_token_idx_new:len(new_emb) - max(0, farthest - final_token_idx_new)]
-                # print('old_emb, new_emb', old_emb.shape, new_emb.shape)
                 context = old_emb.detach()
 
                 values = []
@@ -338,30 +336,14 @@ def edit_model(ldm_stable, old_text_, new_text_, retain_text_, add=False, layers
                         values.append(layer(new_emb[:]).detach())
                 context_vector = context.reshape(context.shape[0], context.shape[1], 1)
                 context_vector_T = context.reshape(context.shape[0], 1, context.shape[1])
-                value_vector = values[layer_num].reshape(values[layer_num].shape[0], values[layer_num].shape[1], 1)
-          
+                value_vector = values[layer_num].reshape(values[layer_num].shape[0], values[layer_num].shape[1], 1)        
                 eigval, eigvecs = torch.linalg.eig(context_vector @ context_vector_T).sum(dim=0))
-                # top_k_indice = torch.topk(eigval.real, k=3).indices
-                # top_k_eigvectors = eigvecs[:, top_k_indice].real
-                # delta_flatten = top_k_eigvectors.sum(dim=1)
-  	       # delta_weight = new_weight - projection_matrices[layer_num].weight
-                # W_weight = projection_matrices[layer_num].weight
-                # U, S,V = torch.svd(W_weight, compute_uv=False)
-                # # print(U.shape, S.shape, V.shape )
-                # delta_weight_PROJ = torch.mm(torch.mm(U.T,delta_weight), V.T)
-                # new_weight = projection_matrices[layer_num].weight + delta_weight_PROJ
-                # projection_matrices[layer_num].weight = torch.nn.Parameter(new_weight)
-                # new_weight_list.append(new_weight)
-                # delta_weight_list.append(delta_weight)
-
                 max_eigventor_idx = torch.argmax(eigval.real)
                 delta_flatten = eigvecs[:, max_eigventor_idx].real
-
-
+		# closed-form resolution 
                 new_weight =  alpha * delta_flatten + (mat1 + ( torch.mean(((context_vector @ context_vector_T).sum(dim=0)- torch.mean((context_vector @ context_vector_T).sum(dim=0))) / (torch.max((context_vector @ context_vector_T).sum(dim=0)) - torch.min((context_vector @ context_vector_T).sum(dim=0)))) / torch.mean(((context_vector @ context_vector_T).sum(dim=0) - torch.min( (value_vector @ context_vector_T).sum(dim=0))) / (torch.max( (value_vector @ context_vector_T).sum(dim=0)) -torch.min( (value_vector @ ccontext_vector_T).sum(dim=0))))) * erase_scale*(value_vector @ context_vector_T).sum(dim=0)) @ torch.inverse((mat2 + erase_scale*(context_vector @ context_vector_T).sum(dim=0)))
                 projection_matrices[layer_num].weight = torch.nn.Parameter(new_weight)
 
-              
                 print(f'Current model status: Edited "{str(old_text_)}" into "{str(new_texts)}" and Retained "{str(retain_text_)}"')
     return ldm_stable
 
@@ -475,6 +457,6 @@ if __name__ == '__main__':
     for p in range(1):
         ldm_stable = edit_model(ldm_stable= ldm_stable, old_text_= old_texts, new_text_=new_texts, add=False, retain_text_= retain_texts, lamb=0.5, alpha=0.1, erase_scale = 1, preserve_scale = 1,  technique=technique)
     
-    torch.save(ldm_stable.unet.state_dict(), f'models/redediting216-{print_text}.pt')
+    torch.save(ldm_stable.unet.state_dict(), f'models/redediting-{print_text}.pt')
     with open(f'data/info/erased-{print_text}.txt', 'w') as fp:
         json.dump(concepts,fp)
